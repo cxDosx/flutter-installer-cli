@@ -4,7 +4,7 @@
 # Targets Intel Macs and Apple Silicon Macs.
 #
 # Usage:
-#   bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-android-installer/main/install-macos.sh)
+#   bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-installer-cli/main/install-macos.sh)
 #   or locally:
 #   bash install-macos.sh [OPTIONS]
 #

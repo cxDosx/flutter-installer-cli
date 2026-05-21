@@ -4,7 +4,7 @@
 # Targets Debian / Ubuntu / CentOS / RHEL / Rocky / AlmaLinux / Fedora.
 #
 # Usage:
-#   bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-android-installer/main/install-flutter-android.sh)
+#   bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-installer-cli/main/install-flutter-android.sh)
 #   or locally:
 #   bash install-flutter-android.sh [OPTIONS]
 #

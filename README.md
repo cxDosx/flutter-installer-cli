@@ -1,43 +1,61 @@
-# Flutter + Android Build Environment Installer
+# Flutter Installer CLI
 
 [![Shell](https://img.shields.io/badge/shell-bash-4eaa25)](https://www.gnu.org/software/bash/)
 [![Platform](https://img.shields.io/badge/platform-Linux%20%7C%20macOS-blue)]()
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Set up an environment that can build Flutter projects into APK / AAB with a single command — on Linux remote servers and on macOS local machines.
+A CLI that sets up a complete **Flutter development environment** in a single command. It installs Flutter together with the full toolchain needed to build real apps — the Android toolchain on Linux or macOS, the iOS toolchain on macOS — and wires up your `PATH` and environment variables automatically. No manual SDK downloads, no version juggling.
 
-Great for cloud CI servers, remote development environments (GCP / AWS / Alibaba Cloud ECS), and bootstrapping a macOS machine from scratch.
+Great for bootstrapping a fresh machine, cloud CI servers, and remote development environments (GCP / AWS / Alibaba Cloud ECS).
+
+This repository provides three installer scripts:
+
+| Script | Runs on | Builds for |
+|---|---|---|
+| `install-flutter-android.sh` | Linux | Android |
+| `install-macos.sh` | macOS | Android |
+| `install-ios-macos.sh` | macOS | iOS |
+
+You can run `install-macos.sh` and `install-ios-macos.sh` on the same Mac to build for both platforms.
 
 ---
 
 ## Quick Start
 
-### Linux (Debian / Ubuntu / CentOS / RHEL / Rocky / AlmaLinux / Fedora)
+### Android on Linux (Debian / Ubuntu / CentOS / RHEL / Rocky / AlmaLinux / Fedora)
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-android-installer/main/install-flutter-android.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-installer-cli/main/install-flutter-android.sh)
 ```
 
-### macOS (Intel / Apple Silicon)
+### Android on macOS (Intel / Apple Silicon)
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-android-installer/main/install-macos.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-installer-cli/main/install-macos.sh)
+```
+
+### iOS on macOS (Intel / Apple Silicon)
+
+```bash
+bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-installer-cli/main/install-ios-macos.sh)
 ```
 
 > Prefer the `bash <(...)` form over `curl ... | bash`. The former supports interactive input; the latter cannot read the keyboard in some shells.
 
-The script will prompt you for:
+The two Android scripts prompt you for the SDK / NDK versions:
 
 ```
 Enter the Android SDK version to install [33]:
 Enter the Android NDK version to install [28.2.13676358]:
 ```
 
-Press Enter to accept the defaults. The whole process takes about 10-15 minutes (depending on your network); once done you can run `flutter build apk`.
+Press Enter to accept the defaults. The iOS script has no version prompts. The whole process takes about 10-15 minutes (depending on your network).
 
 ---
 
 ## What It Does
+
+### Android (`install-flutter-android.sh`, `install-macos.sh`)
 
 | Component | Version | Linux source | macOS source |
 |---|---|---|---|
@@ -48,13 +66,25 @@ Press Enter to accept the defaults. The whole process takes about 10-15 minutes 
 | Android NDK | user-specified (default 28.2.13676358) | sdkmanager | sdkmanager |
 | Flutter | stable channel | git | git |
 
-It also configures the `PATH`, `JAVA_HOME`, `ANDROID_HOME` and related environment variables automatically.
+### iOS (`install-ios-macos.sh`)
+
+| Component | Version | Source |
+|---|---|---|
+| Homebrew | latest | official installer (if missing) |
+| Rosetta 2 | — | `softwareupdate` (Apple Silicon only) |
+| Xcode | whatever you installed | **Mac App Store (manual)** |
+| CocoaPods | latest | Homebrew |
+| Flutter | stable channel | git |
+
+The iOS script accepts the Xcode license, runs Xcode's first-launch component install, and precaches the Flutter iOS toolchain. **It does not install Xcode itself** — the full Xcode app can only come from the App Store. The script checks for it and, if it is missing, points you to the App Store and exits so you can install it and re-run.
+
+All scripts also configure the `PATH`, `JAVA_HOME`, `ANDROID_HOME` and related environment variables automatically.
 
 ---
 
 ## Supported Systems
 
-### Linux (`install-flutter-android.sh`)
+### Android on Linux (`install-flutter-android.sh`)
 
 Detected automatically via `/etc/os-release`. The following distributions are verified:
 
@@ -68,7 +98,7 @@ Detected automatically via `/etc/os-release`. The following distributions are ve
 
 The package manager is selected automatically (`apt` / `dnf` / `yum`).
 
-### macOS (`install-macos.sh`)
+### Android on macOS (`install-macos.sh`)
 
 - ✅ macOS 12+ (Monterey and later)
 - ✅ Apple Silicon (M1 / M2 / M3 / M4)
@@ -76,15 +106,24 @@ The package manager is selected automatically (`apt` / `dnf` / `yum`).
 
 Requires [Homebrew](https://brew.sh/); the script installs it automatically if it is missing.
 
+### iOS on macOS (`install-ios-macos.sh`)
+
+- ✅ macOS 12+ (Monterey and later)
+- ✅ Apple Silicon (M1 / M2 / M3 / M4)
+- ✅ Intel Mac
+
+Requires the full **Xcode** app — install it from the Mac App Store beforehand, or let the script point you there. Also requires [Homebrew](https://brew.sh/), which is installed automatically if missing.
+
 ---
 
 ## Which Script to Use
 
-| Your environment | Use this |
+| Your goal | Use this |
 |---|---|
-| Remote Linux server (GCP / AWS / Alibaba Cloud, etc.) | `install-flutter-android.sh` |
-| Local macOS | `install-macos.sh` |
-| Windows | **Not supported** — use WSL2 + `install-flutter-android.sh` |
+| Build Flutter **Android** apps on a remote Linux server (GCP / AWS / Alibaba Cloud, etc.) | `install-flutter-android.sh` |
+| Build Flutter **Android** apps on local macOS | `install-macos.sh` |
+| Build Flutter **iOS** apps on macOS | `install-ios-macos.sh` |
+| Build on Windows | **Not supported** — use WSL2 + `install-flutter-android.sh` for Android |
 
 ---
 
@@ -93,43 +132,42 @@ Requires [Homebrew](https://brew.sh/); the script installs it automatically if i
 ### Option 1: Run online (recommended)
 
 ```bash
-# Linux
-bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-android-installer/main/install-flutter-android.sh)
+# Android on Linux
+bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-installer-cli/main/install-flutter-android.sh)
 
-# macOS
-bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-android-installer/main/install-macos.sh)
+# Android on macOS
+bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-installer-cli/main/install-macos.sh)
+
+# iOS on macOS
+bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-installer-cli/main/install-ios-macos.sh)
 ```
 
 ### Option 2: Download, then run
 
 ```bash
-# Linux
-curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-android-installer/main/install-flutter-android.sh -o install-flutter-android.sh
-chmod +x install-flutter-android.sh
-./install-flutter-android.sh
-
-# macOS
-curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-android-installer/main/install-macos.sh -o install-macos.sh
-chmod +x install-macos.sh
-./install-macos.sh
+# Example: the iOS script (the same pattern works for the others)
+curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-installer-cli/main/install-ios-macos.sh -o install-ios-macos.sh
+chmod +x install-ios-macos.sh
+./install-ios-macos.sh
 ```
 
 ### Option 3: Clone the repository
 
 ```bash
-git clone https://github.com/cxDosx/flutter-android-installer.git
-cd flutter-android-installer
+git clone https://github.com/cxDosx/flutter-installer-cli.git
+cd flutter-installer-cli
 
-# Pick the script for your system
-bash install-flutter-android.sh   # Linux
-bash install-macos.sh             # macOS
+# Pick the script for your goal
+bash install-flutter-android.sh   # Android on Linux
+bash install-macos.sh             # Android on macOS
+bash install-ios-macos.sh         # iOS on macOS
 ```
 
 ---
 
 ## Input Parameters
 
-Both scripts take identical input:
+The two **Android** scripts take identical input:
 
 | Parameter | Default | Validation rule |
 |---|---|---|
@@ -144,52 +182,53 @@ Enter the Android SDK version to install [33]: abc
 [ERROR] SDK version must be an integer, but got: 'abc'
 ```
 
+The **iOS** script (`install-ios-macos.sh`) has no version parameters — it just needs a confirmation.
+
 ---
 
 ## Non-Interactive Mode
 
-By default the scripts are interactive: they prompt for the SDK / NDK versions and a final confirmation. You can run them fully unattended with command-line flags — useful for CI pipelines, provisioning scripts, and automation.
+By default the scripts are interactive: the Android scripts prompt for the SDK / NDK versions, and all scripts ask for a final confirmation. You can run them fully unattended with command-line flags — useful for CI pipelines, provisioning scripts, and automation.
 
-| Flag | Description |
-|---|---|
-| `-y`, `--non-interactive` | Skip all prompts and the confirmation step; use the default versions unless overridden. |
-| `--sdk <version>` | Android SDK version to install (default: `33`). |
-| `--ndk <version>` | Android NDK version to install (default: `28.2.13676358`). |
-| `-h`, `--help` | Show usage help and exit. |
+| Flag | Description | Available in |
+|---|---|---|
+| `-y`, `--non-interactive` | Skip all prompts and the confirmation step. | all scripts |
+| `--sdk <version>` | Android SDK version to install (default: `33`). | Android scripts only |
+| `--ndk <version>` | Android NDK version to install (default: `28.2.13676358`). | Android scripts only |
+| `-h`, `--help` | Show usage help and exit. | all scripts |
 
 ```bash
-# Run online with all defaults, no prompts
-bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-android-installer/main/install-flutter-android.sh) -y
+# Android, all defaults, no prompts
+bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-installer-cli/main/install-flutter-android.sh) -y
 
-# Specify versions explicitly
-bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-android-installer/main/install-flutter-android.sh) --non-interactive --sdk 34 --ndk 27.0.12077973
+# Android with explicit versions
+bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-installer-cli/main/install-macos.sh) --non-interactive --sdk 34 --ndk 27.0.12077973
 
-# Local file
-bash install-flutter-android.sh -y --sdk 34
+# iOS, no prompts
+bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-installer-cli/main/install-ios-macos.sh) -y
 ```
-
-The same flags work for `install-macos.sh`.
 
 A few details:
 
 - `--sdk` / `--ndk` can be passed **without** `--non-interactive`. The value is then shown as the default in the interactive prompt, so you can still review or change it.
 - In an environment with **no TTY at all** (such as a CI job), the scripts detect this and behave as if `--non-interactive` was passed, even without the flag.
-- Non-interactive mode only removes the script's *own* prompts. It cannot suppress a `sudo` password prompt (Linux) or a password prompt from the Homebrew installer (macOS). For a truly unattended run, use `root` / passwordless `sudo`, and on macOS pre-install Homebrew. When `--non-interactive` is set, the macOS script also passes `NONINTERACTIVE=1` to the Homebrew installer to skip its "press RETURN" step.
+- Non-interactive mode only removes the script's *own* prompts. It cannot suppress a `sudo` password prompt (Linux / macOS) or a password prompt from the Homebrew installer (macOS). For a truly unattended run, use `root` / passwordless `sudo`, and on macOS pre-install Homebrew. When `--non-interactive` is set, the macOS scripts also pass `NONINTERACTIVE=1` to the Homebrew installer to skip its "press RETURN" step.
+- The iOS script cannot install Xcode for you in any mode. If Xcode is missing, install it from the App Store first (see [iOS notes](#ios-on-macos-install-ios-macossh)).
 
 ---
 
 ## Install Locations
 
-| Item | Path (identical for both scripts) |
+| Item | Path |
 |---|---|
-| Android SDK | `~/android-sdk` |
-| Flutter | `~/flutter` |
+| Android SDK (Android scripts) | `~/android-sdk` |
+| Flutter (all scripts) | `~/flutter` |
 | Environment variables (Linux bash) | `~/.bashrc` |
 | Environment variables (Linux zsh) | `~/.zshrc` |
 | Environment variables (macOS, default zsh) | `~/.zshrc` |
 | Environment variables (macOS legacy bash) | `~/.bash_profile` |
 
-After installation, open a new terminal or `source` the relevant file to apply the environment variables.
+The environment variables are written inside a marked block: the Android scripts use a `flutter-android-env` block, the iOS script uses a `flutter-ios-env` block. After installation, open a new terminal or `source` the relevant file to apply them.
 
 ---
 
@@ -205,14 +244,21 @@ source ~/.zshrc
 flutter doctor
 ```
 
-Look at these two lines:
+For **Android**, look at these two lines:
 
 ```
 [✓] Flutter
 [✓] Android toolchain
 ```
 
-As long as those two show ✓, you can build APK / AAB normally. The other items (Chrome, Linux desktop, Android Studio) are irrelevant to command-line builds and can be ignored.
+For **iOS**, look at these two lines:
+
+```
+[✓] Flutter
+[✓] Xcode - develop for iOS and macOS
+```
+
+As long as the relevant lines show ✓, you can build for that platform. The other items (Chrome, Linux desktop, Android Studio) are irrelevant to command-line builds and can be ignored.
 
 ---
 
@@ -221,7 +267,11 @@ As long as those two show ✓, you can build APK / AAB normally. The other items
 ```bash
 cd ~/your-flutter-project
 flutter pub get
+```
 
+### Android
+
+```bash
 # Debug APK (fast, unsigned)
 flutter build apk --debug
 
@@ -237,6 +287,21 @@ Output locations:
 - `build/app/outputs/flutter-apk/*.apk`
 - `build/app/outputs/bundle/release/*.aab`
 
+### iOS
+
+```bash
+# App for the iOS Simulator (no code signing required)
+flutter build ios --simulator
+
+# IPA for distribution (requires an Apple Developer account set up in Xcode)
+flutter build ipa --release
+```
+
+Output locations:
+
+- `build/ios/iphonesimulator/Runner.app`
+- `build/ios/ipa/*.ipa`
+
 ---
 
 ## Idempotency
@@ -246,6 +311,7 @@ The scripts are **idempotent** — running them again will not reinstall things:
 - Existing cmdline-tools / Flutter directories are skipped
 - An NDK that is already fully installed is skipped
 - An incomplete leftover NDK directory (missing `source.properties`) is cleaned up and reinstalled
+- Already-installed Homebrew, Rosetta 2, Xcode and CocoaPods are detected and skipped
 - The environment-variable block is wrapped in markers, so re-runs replace it instead of appending duplicates
 
 ---
@@ -254,13 +320,7 @@ The scripts are **idempotent** — running them again will not reinstall things:
 
 ### Q: Interactive input does not work when run via `curl ... | bash`
 
-That is expected. Use the `bash <(curl ...)` form instead:
-
-```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-android-installer/main/install-flutter-android.sh)
-```
-
-Or download the script locally and run it.
+That is expected. Use the `bash <(curl ...)` form instead, or download the script locally and run it.
 
 ### Q: Installation fails with "NDK installation failed"
 
@@ -270,11 +330,19 @@ The NDK version number must be **exact** (including the long trailing digits). C
 
 ### Q: Installation fails with "could not find `build-tools;XX.0.0`"
 
-By default the script installs Build Tools version `<SDK version>.0.0`. Almost every modern SDK version has a matching `.0.0` Build Tools, but a few do not. If you hit this, look up an existing version in the [Android SDK Build Tools list](https://developer.android.com/tools/releases/build-tools) and re-run the script with the corresponding SDK version.
+By default the Android scripts install Build Tools version `<SDK version>.0.0`. Almost every modern SDK version has a matching `.0.0` Build Tools, but a few do not. If you hit this, look up an existing version in the [Android SDK Build Tools list](https://developer.android.com/tools/releases/build-tools) and re-run the script with the corresponding SDK version.
 
 ### Q: `Flutter requires Android SDK XX and Build Tools XX.X.X`
 
 A Flutter SDK upgrade may require a newer Android SDK. Just re-run the script and enter the new SDK version number. Multiple SDK versions can coexist.
+
+### Q: The iOS script says "The full Xcode app is not installed"
+
+iOS builds require the full Xcode app, which can only be installed from the Mac App Store (a free Apple ID is enough) — it cannot be installed by a script. Install Xcode, open it once so it can finish its first-time setup, then re-run `install-ios-macos.sh`. The script will then accept the license and install the remaining components for you.
+
+### Q: iOS build fails with CocoaPods errors
+
+Make sure `pod` is on your `PATH` (`source ~/.zshrc` or open a new terminal). Inside your project, `cd ios && pod install` can surface more detailed errors. On Apple Silicon, the iOS script installs Rosetta 2 because some older pods still need it.
 
 ### Q: Homebrew installs slowly on macOS
 
@@ -282,17 +350,17 @@ You can configure a faster regional mirror before running the script. See [Homeb
 
 ### Q: macOS says `java_home cannot find 17`
 
-This usually happens when Homebrew installs the JDK but does not link it into the system directory. The script handles this step automatically (`ln -sfn` into `/Library/Java/JavaVirtualMachines`), which requires your `sudo` password.
+This usually happens when Homebrew installs the JDK but does not link it into the system directory. The Android macOS script handles this step automatically (`ln -sfn` into `/Library/Java/JavaVirtualMachines`), which requires your `sudo` password.
 
 ### Q: Can it run non-interactively (all defaults)?
 
-Yes. Pass the `-y` / `--non-interactive` flag, optionally with `--sdk` / `--ndk` to choose versions — see [Non-Interactive Mode](#non-interactive-mode) for details and examples. In an environment with no TTY at all (such as CI), the scripts switch to non-interactive behavior automatically, even without the flag.
+Yes. Pass the `-y` / `--non-interactive` flag, optionally with `--sdk` / `--ndk` (Android only) to choose versions — see [Non-Interactive Mode](#non-interactive-mode) for details and examples. In an environment with no TTY at all (such as CI), the scripts switch to non-interactive behavior automatically, even without the flag.
 
 ---
 
 ## Uninstall
 
-### Linux
+### Android on Linux
 
 ```bash
 rm -rf ~/android-sdk ~/flutter
@@ -300,7 +368,7 @@ rm -rf ~/android-sdk ~/flutter
 # by the flutter-android-env markers
 ```
 
-### macOS
+### Android on macOS
 
 ```bash
 rm -rf ~/android-sdk ~/flutter
@@ -312,6 +380,20 @@ sudo rm -f /Library/Java/JavaVirtualMachines/openjdk-17.jdk
 # Then manually edit ~/.zshrc and remove the block wrapped
 # by the flutter-android-env markers
 ```
+
+### iOS on macOS
+
+```bash
+rm -rf ~/flutter
+
+# Uninstall CocoaPods (optional)
+brew uninstall cocoapods
+
+# Then manually edit ~/.zshrc and remove the block wrapped
+# by the flutter-ios-env markers
+```
+
+> Xcode and Rosetta 2 are left in place — remove Xcode from the Applications folder yourself if you no longer need it.
 
 ---
 
