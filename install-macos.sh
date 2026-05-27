@@ -48,23 +48,25 @@ FLUTTER_VERSION_ARG=""
 # Helper functions
 # ============================================================================
 
-# Colored output (only when stdout is a terminal)
+# Colored output (only when stdout is a terminal). Use ANSI-C quoting ($'...')
+# so the variables hold the real ESC byte; this lets us use plain `echo` (which
+# is portable) instead of relying on `echo -e` to interpret backslash escapes.
 if [[ -t 1 ]]; then
-    RED='\033[0;31m'
-    GREEN='\033[0;32m'
-    YELLOW='\033[1;33m'
-    BLUE='\033[0;34m'
-    BOLD='\033[1m'
-    NC='\033[0m'
+    RED=$'\033[0;31m'
+    GREEN=$'\033[0;32m'
+    YELLOW=$'\033[1;33m'
+    BLUE=$'\033[0;34m'
+    BOLD=$'\033[1m'
+    NC=$'\033[0m'
 else
     RED='' GREEN='' YELLOW='' BLUE='' BOLD='' NC=''
 fi
 
-info()  { echo -e "${BLUE}[INFO]${NC}  $*"; }
-ok()    { echo -e "${GREEN}[OK]${NC}    $*"; }
-warn()  { echo -e "${YELLOW}[WARN]${NC}  $*"; }
-err()   { echo -e "${RED}[ERROR]${NC} $*" >&2; }
-title() { echo -e "\n${BOLD}━━━ $* ━━━${NC}\n"; }
+info()  { printf '%s[INFO]%s  %s\n' "$BLUE" "$NC" "$*"; }
+ok()    { printf '%s[OK]%s    %s\n' "$GREEN" "$NC" "$*"; }
+warn()  { printf '%s[WARN]%s  %s\n' "$YELLOW" "$NC" "$*"; }
+err()   { printf '%s[ERROR]%s %s\n' "$RED" "$NC" "$*" >&2; }
+title() { printf '\n%s━━━ %s ━━━%s\n\n' "$BOLD" "$*" "$NC"; }
 
 die() {
     err "$*"
@@ -87,7 +89,7 @@ prompt() {
         return
     fi
 
-    echo -en "${BOLD}${message}${NC} [${GREEN}${default}${NC}]: " > /dev/tty
+    printf '%s%s%s [%s%s%s]: ' "$BOLD" "$message" "$NC" "$GREEN" "$default" "$NC" > /dev/tty
     read -r var < /dev/tty || var=""
 
     if [[ -z "$var" ]]; then
@@ -482,9 +484,9 @@ verify() {
     echo
     ok "Installation complete 🎉"
     echo
-    echo -e "${BOLD}Next steps:${NC}"
-    echo "  1. Run ${GREEN}source $RCFILE${NC} or open a new terminal"
-    echo "  2. In your Flutter project directory, run ${GREEN}flutter pub get && flutter build apk --debug${NC}"
+    printf '%sNext steps:%s\n' "$BOLD" "$NC"
+    printf '  1. Run %ssource %s%s or open a new terminal\n' "$GREEN" "$RCFILE" "$NC"
+    printf '  2. In your Flutter project directory, run %sflutter pub get && flutter build apk --debug%s\n' "$GREEN" "$NC"
 }
 
 # ============================================================================
