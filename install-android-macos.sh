@@ -1,12 +1,12 @@
 #!/usr/bin/env bash
 #
-# One-command installer for a Flutter + Android build environment.
-# Targets Debian / Ubuntu / CentOS / RHEL / Rocky / AlmaLinux / Fedora.
+# One-command installer for a Flutter + Android build environment (macOS).
+# Targets Intel Macs and Apple Silicon Macs.
 #
 # Usage:
-#   bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-installer-cli/main/install-flutter-android.sh)
+#   bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-installer-cli/main/install-android-macos.sh)
 #   or locally:
-#   bash install-flutter-android.sh [OPTIONS]
+#   bash install-android-macos.sh [OPTIONS]
 #
 # Options:
 #   -y, --non-interactive   Run without prompts; use defaults and skip confirmation.
@@ -16,7 +16,8 @@
 #   -h, --help              Show help and exit.
 #
 # Installs:
-#   - JDK 17
+#   - Homebrew (if not already installed)
+#   - JDK 17 (openjdk@17)
 #   - Android command-line tools
 #   - Android SDK Platform (user-specified version, default 33)
 #   - Android Build Tools (matching the SDK version)
@@ -31,7 +32,6 @@ set -euo pipefail
 
 DEFAULT_SDK_VERSION="33"
 DEFAULT_NDK_VERSION="28.2.13676358"
-CMDLINE_TOOLS_URL="https://dl.google.com/android/repository/commandlinetools-linux-11076708_latest.zip"
 FLUTTER_CHANNEL="stable"
 FLUTTER_REPO="https://github.com/flutter/flutter.git"
 
@@ -89,7 +89,6 @@ prompt() {
         return
     fi
 
-    # Read from /dev/tty so a piped stdin does not block input
     printf '%s%s%s [%s%s%s]: ' "$BOLD" "$message" "$NC" "$GREEN" "$default" "$NC" > /dev/tty
     read -r var < /dev/tty || var=""
 
@@ -119,9 +118,8 @@ validate_ndk_version() {
     fi
 }
 
-# Validate: Flutter version must look like X.Y.Z (optional 'v' prefix and
-# pre-release suffix like '-1.0.pre' allowed) AND must exist as a tag in the
-# official Flutter repository.
+# Validate: Flutter version must look like X.Y.Z (pre-release suffix like
+# '-1.0.pre' allowed) AND must exist as a tag in the official Flutter repo.
 validate_flutter_version() {
     local v="$1"
     if [[ ! "$v" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.\-]+)?$ ]]; then
@@ -139,7 +137,7 @@ validate_flutter_version() {
 
 usage() {
     cat <<'EOF'
-Usage: bash install-flutter-android.sh [OPTIONS]
+Usage: bash install-android-macos.sh [OPTIONS]
 
 Options:
   -y, --non-interactive   Run without prompts: use the default versions
@@ -153,10 +151,10 @@ Options:
   -h, --help              Show this help and exit.
 
 Examples:
-  bash install-flutter-android.sh
-  bash install-flutter-android.sh --non-interactive
-  bash install-flutter-android.sh -y --sdk 34 --ndk 27.0.12077973
-  bash install-flutter-android.sh -y --flutter 3.24.0
+  bash install-android-macos.sh
+  bash install-android-macos.sh --non-interactive
+  bash install-android-macos.sh -y --sdk 34 --ndk 27.0.12077973
+  bash install-android-macos.sh -y --flutter 3.24.0
 EOF
 }
 
@@ -207,97 +205,119 @@ parse_args() {
 }
 
 # ============================================================================
-# OS detection
+# macOS detection
 # ============================================================================
 
-detect_os() {
-    if [[ ! -f /etc/os-release ]]; then
-        die "Unable to identify the system (/etc/os-release not found)"
+detect_macos() {
+    if [[ "$(uname -s)" != "Darwin" ]]; then
+        die "This script only supports macOS. Linux users: use install-android-linux.sh"
     fi
 
-    # shellcheck disable=SC1091
-    . /etc/os-release
-
-    OS_ID="${ID:-unknown}"
-    OS_ID_LIKE="${ID_LIKE:-}"
-
-    case "$OS_ID" in
-        debian|ubuntu)
-            PKG_MANAGER="apt"
+    ARCH="$(uname -m)"
+    case "$ARCH" in
+        arm64)
+            MAC_TYPE="Apple Silicon"
+            BREW_PREFIX="/opt/homebrew"
             ;;
-        centos|rhel|rocky|almalinux|fedora)
-            PKG_MANAGER="dnf"
-            has dnf || PKG_MANAGER="yum"
+        x86_64)
+            MAC_TYPE="Intel"
+            BREW_PREFIX="/usr/local"
             ;;
         *)
-            # Fallback: inspect ID_LIKE
-            if [[ "$OS_ID_LIKE" == *"debian"* ]]; then
-                PKG_MANAGER="apt"
-            elif [[ "$OS_ID_LIKE" == *"rhel"* ]] || [[ "$OS_ID_LIKE" == *"fedora"* ]]; then
-                PKG_MANAGER="dnf"
-                has dnf || PKG_MANAGER="yum"
-            else
-                die "Unsupported system: $OS_ID (supports Debian/Ubuntu/CentOS/RHEL/Rocky/AlmaLinux/Fedora)"
-            fi
+            die "Unknown macOS architecture: $ARCH"
             ;;
     esac
 
-    info "Detected system: ${OS_ID} (using ${PKG_MANAGER})"
-}
-
-# Use sudo unless already running as root
-SUDO=""
-need_sudo() {
-    if [[ "$EUID" -ne 0 ]]; then
-        has sudo || die "sudo is required but not installed"
-        SUDO="sudo"
-    fi
+    local macos_version
+    macos_version=$(sw_vers -productVersion)
+    info "macOS $macos_version ($MAC_TYPE, $ARCH)"
 }
 
 # ============================================================================
-# Install system dependencies
+# Install Homebrew
 # ============================================================================
 
-install_system_deps() {
-    title "Installing system dependencies"
+install_homebrew() {
+    title "Checking Homebrew"
 
-    case "$PKG_MANAGER" in
-        apt)
-            info "Updating apt index..."
-            $SUDO apt update -y
-            info "Installing base tools and JDK 17..."
-            $SUDO apt install -y \
-                curl git unzip wget xz-utils zip ca-certificates \
-                openjdk-17-jdk libglu1-mesa
-            ;;
-        dnf|yum)
-            info "Installing base tools and JDK 17..."
-            $SUDO "$PKG_MANAGER" install -y \
-                curl git unzip wget xz tar zip ca-certificates \
-                java-17-openjdk-devel mesa-libGLU || \
-                $SUDO "$PKG_MANAGER" install -y \
-                    curl git unzip wget xz tar zip ca-certificates \
-                    java-17-openjdk-devel
-            ;;
-    esac
-
-    # Verify Java
-    if ! has java; then
-        die "JDK installation failed: the 'java' command is unavailable"
+    if has brew; then
+        ok "Homebrew already installed ($(brew --version | head -1))"
+        return
     fi
 
-    local java_version
-    java_version=$(java -version 2>&1 | head -1)
-    ok "Java installed: $java_version"
+    info "Homebrew not found, installing..."
+    info "Enter your password if prompted for sudo"
+    if [[ "$NON_INTERACTIVE" == true ]]; then
+        # NONINTERACTIVE=1 stops the Homebrew installer from waiting on RETURN
+        NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    else
+        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+    fi
+
+    # Add brew to PATH for the current session
+    if [[ -x "$BREW_PREFIX/bin/brew" ]]; then
+        eval "$($BREW_PREFIX/bin/brew shellenv)"
+    else
+        die "brew command not found after Homebrew installation"
+    fi
+
+    ok "Homebrew installed"
 }
 
-# Determine JAVA_HOME
-detect_java_home() {
-    local java_bin
-    java_bin=$(readlink -f "$(command -v java)")
-    # java_bin looks like /usr/lib/jvm/java-17-openjdk-amd64/bin/java
-    JAVA_HOME_DETECTED="${java_bin%/bin/java}"
-    info "Detected JAVA_HOME: $JAVA_HOME_DETECTED"
+# ============================================================================
+# Install JDK 17
+# ============================================================================
+
+install_jdk() {
+    title "Installing JDK 17"
+
+    if /usr/libexec/java_home -v 17 >/dev/null 2>&1; then
+        local current_java_home
+        current_java_home=$(/usr/libexec/java_home -v 17)
+        ok "JDK 17 already installed: $current_java_home"
+        JAVA_HOME_DETECTED="$current_java_home"
+        return
+    fi
+
+    info "Installing openjdk@17 via Homebrew..."
+    brew install openjdk@17
+
+    # macOS needs a manual symlink into the system Java directory so that
+    # /usr/libexec/java_home can discover it
+    local jdk_path="$BREW_PREFIX/opt/openjdk@17/libexec/openjdk.jdk"
+    local system_jdk_dir="/Library/Java/JavaVirtualMachines"
+
+    if [[ -d "$jdk_path" ]] && [[ ! -L "$system_jdk_dir/openjdk-17.jdk" ]]; then
+        info "Linking openjdk@17 into the system Java directory (requires sudo)..."
+        sudo ln -sfn "$jdk_path" "$system_jdk_dir/openjdk-17.jdk"
+    fi
+
+    if ! /usr/libexec/java_home -v 17 >/dev/null 2>&1; then
+        die "JDK 17 installed but not recognized by /usr/libexec/java_home"
+    fi
+
+    JAVA_HOME_DETECTED=$(/usr/libexec/java_home -v 17)
+    ok "JDK 17 installed: $JAVA_HOME_DETECTED"
+}
+
+# ============================================================================
+# Install other base tools
+# ============================================================================
+
+install_basic_tools() {
+    title "Installing base tools"
+
+    local tools=("git" "unzip")
+    for tool in "${tools[@]}"; do
+        if has "$tool"; then
+            info "$tool already present, skipping"
+        else
+            info "Installing $tool..."
+            brew install "$tool"
+        fi
+    done
+
+    ok "Base tools ready"
 }
 
 # ============================================================================
@@ -310,12 +330,14 @@ install_android_sdk() {
     if [[ -d "$ANDROID_HOME/cmdline-tools/latest" ]]; then
         info "Android cmdline-tools already present, skipping download"
     else
-        info "Downloading Android command-line tools..."
+        info "Downloading Android command-line tools (macOS build)..."
         mkdir -p "$ANDROID_HOME/cmdline-tools"
         cd "$ANDROID_HOME/cmdline-tools"
 
         local tmpzip="cmdline-tools.zip"
-        wget -q --show-progress -O "$tmpzip" "$CMDLINE_TOOLS_URL"
+        # Use the macOS build of the command-line tools
+        local cmdline_url="https://dl.google.com/android/repository/commandlinetools-mac-11076708_latest.zip"
+        curl -fsSL -o "$tmpzip" "$cmdline_url"
 
         unzip -qo "$tmpzip"
         mv cmdline-tools latest
@@ -323,7 +345,6 @@ install_android_sdk() {
         ok "command-line tools installed to $ANDROID_HOME/cmdline-tools/latest"
     fi
 
-    # Add sdkmanager to PATH for the duration of this script run
     export PATH="$ANDROID_HOME/cmdline-tools/latest/bin:$ANDROID_HOME/platform-tools:$PATH"
     export ANDROID_HOME ANDROID_SDK_ROOT="$ANDROID_HOME"
     export JAVA_HOME="$JAVA_HOME_DETECTED"
@@ -363,7 +384,6 @@ install_ndk() {
     info "Downloading and installing NDK $NDK_VERSION..."
     sdkmanager --install "ndk;$NDK_VERSION"
 
-    # Re-verify after installation
     if [[ ! -f "$ndk_dir/source.properties" ]]; then
         die "NDK installation failed: $ndk_dir/source.properties not found. Make sure version '$NDK_VERSION' is available in the Google repository"
     fi
@@ -409,9 +429,10 @@ install_flutter() {
 setup_shell_env() {
     title "Configuring shell environment variables"
 
-    case "$(basename "${SHELL:-/bin/bash}")" in
+    # macOS defaults to zsh (since Catalina); older versions may use bash
+    case "$(basename "${SHELL:-/bin/zsh}")" in
         zsh)  RCFILE="$HOME/.zshrc" ;;
-        bash) RCFILE="$HOME/.bashrc" ;;
+        bash) RCFILE="$HOME/.bash_profile" ;;
         *)    RCFILE="$HOME/.profile" ;;
     esac
 
@@ -420,15 +441,16 @@ setup_shell_env() {
     local marker_begin="# >>> flutter-android-env (managed by install script) >>>"
     local marker_end="# <<< flutter-android-env <<<"
 
-    # Remove any previous block
+    # Remove any previous block (macOS sed differs slightly from GNU sed,
+    # so perl is more reliable here)
     if grep -q "$marker_begin" "$RCFILE"; then
         info "Existing config block detected, replacing it..."
-        # Delete the old block with sed, then drop the temporary backup
-        sed -i.bak "/$marker_begin/,/$marker_end/d" "$RCFILE"
+        # Replace the content between the two markers (macOS-compatible),
+        # then drop the temporary backup
+        perl -i.bak -ne "print unless /\Q$marker_begin\E/ .. /\Q$marker_end\E/" "$RCFILE"
         rm -f "$RCFILE.bak"
     fi
 
-    # Append the new block
     cat >> "$RCFILE" <<EOF
 $marker_begin
 export JAVA_HOME="$JAVA_HOME_DETECTED"
@@ -442,7 +464,7 @@ $marker_end
 EOF
 
     ok "Environment variables written to $RCFILE"
-    info "Log in again or run 'source $RCFILE' to apply them"
+    info "Open a new terminal or run 'source $RCFILE' to apply them"
 }
 
 # ============================================================================
@@ -463,7 +485,7 @@ verify() {
     ok "Installation complete 🎉"
     echo
     printf '%sNext steps:%s\n' "$BOLD" "$NC"
-    printf '  1. Run %ssource %s%s or log in again\n' "$GREEN" "$RCFILE" "$NC"
+    printf '  1. Run %ssource %s%s or open a new terminal\n' "$GREEN" "$RCFILE" "$NC"
     printf '  2. In your Flutter project directory, run %sflutter pub get && flutter build apk --debug%s\n' "$GREEN" "$NC"
 }
 
@@ -474,16 +496,14 @@ verify() {
 main() {
     parse_args "$@"
 
-    title "Flutter + Android build environment installer"
+    title "Flutter + Android build environment installer (macOS)"
 
-    detect_os
-    need_sudo
+    detect_macos
 
     if [[ "$NON_INTERACTIVE" == true ]]; then
         info "Running in non-interactive mode (prompts skipped, defaults used)"
     fi
 
-    # Parameter input (prompts are skipped in non-interactive mode)
     SDK_VERSION=$(prompt "Enter the Android SDK version to install" "${SDK_VERSION_ARG:-$DEFAULT_SDK_VERSION}")
     validate_sdk_version "$SDK_VERSION"
     ok "SDK version: $SDK_VERSION"
@@ -509,7 +529,8 @@ main() {
 
     echo
     info "About to install the following components:"
-    echo "  - JDK 17"
+    echo "  - Homebrew (if not already installed)"
+    echo "  - JDK 17 (openjdk@17 via Homebrew)"
     echo "  - Android SDK Platform $SDK_VERSION"
     echo "  - Android Build Tools $SDK_VERSION.0.0"
     echo "  - Android NDK $NDK_VERSION"
@@ -524,8 +545,9 @@ main() {
         exit 0
     fi
 
-    install_system_deps
-    detect_java_home
+    install_homebrew
+    install_basic_tools
+    install_jdk
     install_android_sdk
     install_ndk
     install_flutter

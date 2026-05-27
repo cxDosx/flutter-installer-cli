@@ -12,11 +12,11 @@ This repository provides three installer scripts:
 
 | Script | Runs on | Builds for |
 |---|---|---|
-| `install-flutter-android.sh` | Linux | Android |
-| `install-macos.sh` | macOS | Android |
+| `install-android-linux.sh` | Linux | Android |
+| `install-android-macos.sh` | macOS | Android |
 | `install-ios-macos.sh` | macOS | iOS |
 
-You can run `install-macos.sh` and `install-ios-macos.sh` on the same Mac to build for both platforms.
+You can run `install-android-macos.sh` and `install-ios-macos.sh` on the same Mac to build for both platforms.
 
 ---
 
@@ -25,13 +25,13 @@ You can run `install-macos.sh` and `install-ios-macos.sh` on the same Mac to bui
 ### Android on Linux (Debian / Ubuntu / CentOS / RHEL / Rocky / AlmaLinux / Fedora)
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-installer-cli/main/install-flutter-android.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-installer-cli/main/install-android-linux.sh)
 ```
 
 ### Android on macOS (Intel / Apple Silicon)
 
 ```bash
-bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-installer-cli/main/install-macos.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-installer-cli/main/install-android-macos.sh)
 ```
 
 ### iOS on macOS (Intel / Apple Silicon)
@@ -55,7 +55,7 @@ Press Enter to accept the defaults. The iOS script has no version prompts. The w
 
 ## What It Does
 
-### Android (`install-flutter-android.sh`, `install-macos.sh`)
+### Android (`install-android-linux.sh`, `install-android-macos.sh`)
 
 | Component | Version | Linux source | macOS source |
 |---|---|---|---|
@@ -84,7 +84,7 @@ All scripts also configure the `PATH`, `JAVA_HOME`, `ANDROID_HOME` and related e
 
 ## Supported Systems
 
-### Android on Linux (`install-flutter-android.sh`)
+### Android on Linux (`install-android-linux.sh`)
 
 Detected automatically via `/etc/os-release`. The following distributions are verified:
 
@@ -98,7 +98,7 @@ Detected automatically via `/etc/os-release`. The following distributions are ve
 
 The package manager is selected automatically (`apt` / `dnf` / `yum`).
 
-### Android on macOS (`install-macos.sh`)
+### Android on macOS (`install-android-macos.sh`)
 
 - ✅ macOS 12+ (Monterey and later)
 - ✅ Apple Silicon (M1 / M2 / M3 / M4)
@@ -120,10 +120,10 @@ Requires the full **Xcode** app — install it from the Mac App Store beforehand
 
 | Your goal | Use this |
 |---|---|
-| Build Flutter **Android** apps on a remote Linux server (GCP / AWS / Alibaba Cloud, etc.) | `install-flutter-android.sh` |
-| Build Flutter **Android** apps on local macOS | `install-macos.sh` |
+| Build Flutter **Android** apps on a remote Linux server (GCP / AWS / Alibaba Cloud, etc.) | `install-android-linux.sh` |
+| Build Flutter **Android** apps on local macOS | `install-android-macos.sh` |
 | Build Flutter **iOS** apps on macOS | `install-ios-macos.sh` |
-| Build on Windows | **Not supported** — use WSL2 + `install-flutter-android.sh` for Android |
+| Build on Windows | **Not supported** — use WSL2 + `install-android-linux.sh` for Android |
 
 ---
 
@@ -133,10 +133,10 @@ Requires the full **Xcode** app — install it from the Mac App Store beforehand
 
 ```bash
 # Android on Linux
-bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-installer-cli/main/install-flutter-android.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-installer-cli/main/install-android-linux.sh)
 
 # Android on macOS
-bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-installer-cli/main/install-macos.sh)
+bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-installer-cli/main/install-android-macos.sh)
 
 # iOS on macOS
 bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-installer-cli/main/install-ios-macos.sh)
@@ -158,8 +158,8 @@ git clone https://github.com/cxDosx/flutter-installer-cli.git
 cd flutter-installer-cli
 
 # Pick the script for your goal
-bash install-flutter-android.sh   # Android on Linux
-bash install-macos.sh             # Android on macOS
+bash install-android-linux.sh   # Android on Linux
+bash install-android-macos.sh             # Android on macOS
 bash install-ios-macos.sh         # iOS on macOS
 ```
 
@@ -177,7 +177,7 @@ The two **Android** scripts take identical input:
 **The script exits immediately on invalid input** and will not install a wrong version. For example:
 
 ```
-$ bash install-flutter-android.sh
+$ bash install-android-linux.sh
 Enter the Android SDK version to install [33]: abc
 [ERROR] SDK version must be an integer, but got: 'abc'
 ```
@@ -199,10 +199,10 @@ By default the scripts are interactive: the Android scripts prompt for the SDK /
 
 ```bash
 # Android, all defaults, no prompts
-bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-installer-cli/main/install-flutter-android.sh) -y
+bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-installer-cli/main/install-android-linux.sh) -y
 
 # Android with explicit versions
-bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-installer-cli/main/install-macos.sh) --non-interactive --sdk 34 --ndk 27.0.12077973
+bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-installer-cli/main/install-android-macos.sh) --non-interactive --sdk 34 --ndk 27.0.12077973
 
 # iOS, no prompts
 bash <(curl -fsSL https://raw.githubusercontent.com/cxDosx/flutter-installer-cli/main/install-ios-macos.sh) -y
