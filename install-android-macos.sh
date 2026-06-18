@@ -352,13 +352,27 @@ install_android_sdk() {
     info "Accepting Android SDK licenses..."
     yes 2>/dev/null | sdkmanager --licenses > /dev/null || true
 
-    info "Installing platform-tools, SDK Platform ${SDK_VERSION}, Build Tools ${SDK_VERSION}.0.0..."
-    sdkmanager \
-        "platform-tools" \
-        "platforms;android-${SDK_VERSION}" \
-        "build-tools;${SDK_VERSION}.0.0"
+    # Build the package list, skipping any version that is already installed.
+    # SDK Platform and Build Tools are version-keyed, so several versions can
+    # coexist; only install the requested version if it is missing.
+    local sdk_packages=("platform-tools")
 
-    ok "Android SDK Platform ${SDK_VERSION} installed"
+    if [[ -d "$ANDROID_HOME/platforms/android-${SDK_VERSION}" ]]; then
+        info "SDK Platform ${SDK_VERSION} already installed, skipping"
+    else
+        sdk_packages+=("platforms;android-${SDK_VERSION}")
+    fi
+
+    if [[ -d "$ANDROID_HOME/build-tools/${SDK_VERSION}.0.0" ]]; then
+        info "Build Tools ${SDK_VERSION}.0.0 already installed, skipping"
+    else
+        sdk_packages+=("build-tools;${SDK_VERSION}.0.0")
+    fi
+
+    info "Installing: ${sdk_packages[*]}..."
+    sdkmanager "${sdk_packages[@]}"
+
+    ok "Android SDK Platform ${SDK_VERSION} ready"
 }
 
 # ============================================================================
@@ -398,15 +412,40 @@ install_ndk() {
 install_flutter() {
     title "Installing Flutter"
 
+    local flutter_ref="$FLUTTER_CHANNEL"
+    local flutter_desc="$FLUTTER_CHANNEL channel (latest)"
+    if [[ -n "$FLUTTER_VERSION" ]]; then
+        flutter_ref="$FLUTTER_VERSION"
+        flutter_desc="version $FLUTTER_VERSION"
+    fi
+
     if [[ -d "$FLUTTER_HOME" ]]; then
-        info "Flutter directory already exists, skipping clone"
-    else
-        local flutter_ref="$FLUTTER_CHANNEL"
-        local flutter_desc="$FLUTTER_CHANNEL channel (latest)"
-        if [[ -n "$FLUTTER_VERSION" ]]; then
-            flutter_ref="$FLUTTER_VERSION"
-            flutter_desc="version $FLUTTER_VERSION"
+        # Work out which version is currently installed
+        local installed_version
+        installed_version="$(git -C "$FLUTTER_HOME" describe --tags 2>/dev/null || true)"
+        if [[ -z "$installed_version" && -f "$FLUTTER_HOME/version" ]]; then
+            installed_version="$(head -1 "$FLUTTER_HOME/version" 2>/dev/null)"
         fi
+
+        if [[ -z "$FLUTTER_VERSION" ]]; then
+            # No specific version requested: keep whatever is already there
+            info "Flutter already installed (${installed_version:-unknown version}), skipping clone"
+        elif [[ "$installed_version" == "$FLUTTER_VERSION" ]]; then
+            info "Flutter $FLUTTER_VERSION already installed, skipping clone"
+        else
+            warn "Installed Flutter is ${installed_version:-an unknown version}, but $FLUTTER_VERSION was requested"
+            local reinstall
+            reinstall=$(prompt "Reinstall Flutter as $FLUTTER_VERSION? This replaces $FLUTTER_HOME (y/N)" "n")
+            if [[ "$reinstall" =~ ^[Yy] ]]; then
+                info "Removing existing Flutter at $FLUTTER_HOME..."
+                rm -rf "$FLUTTER_HOME"
+                info "Cloning Flutter $flutter_desc..."
+                git clone --depth 1 -b "$flutter_ref" "$FLUTTER_REPO" "$FLUTTER_HOME"
+            else
+                info "Keeping the existing Flutter (${installed_version:-unknown version})"
+            fi
+        fi
+    else
         info "Cloning Flutter $flutter_desc..."
         git clone --depth 1 -b "$flutter_ref" "$FLUTTER_REPO" "$FLUTTER_HOME"
     fi
