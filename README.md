@@ -70,7 +70,7 @@ Press Enter to accept the defaults. The iOS script has no version prompts. The w
 
 | Component | Version | Source |
 |---|---|---|
-| Homebrew | latest | official installer (if missing) |
+| Homebrew | latest (Apple Silicon) / 6.0.22 (Intel) | official installer (if missing) |
 | Rosetta 2 | — | `softwareupdate` (Apple Silicon only) |
 | Xcode | whatever you installed | **Mac App Store (manual)** |
 | CocoaPods | latest | Homebrew |
@@ -102,7 +102,7 @@ The package manager is selected automatically (`apt` / `dnf` / `yum`).
 
 - ✅ macOS 12+ (Monterey and later)
 - ✅ Apple Silicon (M1 / M2 / M3 / M4)
-- ✅ Intel Mac
+- ✅ Intel Mac (Homebrew pinned to 6.0.22, see [Homebrew on Intel Macs](#q-why-is-homebrew-pinned-to-6022-on-intel-macs))
 
 Requires [Homebrew](https://brew.sh/); the script installs it automatically if it is missing.
 
@@ -110,7 +110,7 @@ Requires [Homebrew](https://brew.sh/); the script installs it automatically if i
 
 - ✅ macOS 12+ (Monterey and later)
 - ✅ Apple Silicon (M1 / M2 / M3 / M4)
-- ✅ Intel Mac
+- ✅ Intel Mac (Homebrew pinned to 6.0.22, see [Homebrew on Intel Macs](#q-why-is-homebrew-pinned-to-6022-on-intel-macs))
 
 Requires the full **Xcode** app — install it from the Mac App Store beforehand, or let the script point you there. Also requires [Homebrew](https://brew.sh/), which is installed automatically if missing.
 
@@ -347,6 +347,14 @@ Make sure `pod` is on your `PATH` (`source ~/.zshrc` or open a new terminal). In
 ### Q: Homebrew installs slowly on macOS
 
 You can configure a faster regional mirror before running the script. See [Homebrew mirror help — TUNA mirror](https://mirrors.tuna.tsinghua.edu.cn/help/homebrew/).
+
+### Q: Why is Homebrew pinned to 6.0.22 on Intel Macs?
+
+Homebrew's official installer no longer supports Intel Macs (since [Homebrew/install@e078684](https://github.com/Homebrew/install/commit/e078684c4a86a34bc1239e1a0ddcb86d7b9c787b), it aborts with "Homebrew on macOS is only supported on Apple Silicon processors!"). If Homebrew is missing on an Intel Mac, the scripts run the last installer commit that still supports Intel (`7a133dc`) instead.
+
+On Intel Macs the macOS scripts check out Homebrew 6.0.22 (a new install or an existing one) and set `HOMEBREW_NO_AUTO_UPDATE=1`, both for the current run and in the managed block of your shell config, so later `brew install` calls do not move Homebrew past that release. Apple Silicon Macs keep the latest Homebrew. Running `brew update` by hand will still update Homebrew and remove the pin; re-run the script to pin it again.
+
+The chip is detected from the hardware, not just `uname -m`: if the script runs in a Rosetta 2 (x86_64) shell on Apple Silicon, it stops and asks you to re-run it from a native terminal.
 
 ### Q: macOS says `java_home cannot find 17`
 

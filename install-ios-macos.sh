@@ -14,7 +14,7 @@
 #   -h, --help              Show help and exit.
 #
 # Installs / configures:
-#   - Homebrew (if not already installed)
+#   - Homebrew (if not already installed; pinned to 6.0.22 on Intel Macs)
 #   - Rosetta 2 (Apple Silicon only)
 #   - Xcode license acceptance + first-launch components
 #   - CocoaPods (via Homebrew)
@@ -34,6 +34,14 @@ set -euo pipefail
 FLUTTER_CHANNEL="stable"
 FLUTTER_REPO="https://github.com/flutter/flutter.git"
 FLUTTER_HOME="${HOME}/flutter"
+
+# Homebrew is pinned to this release on Intel Macs, the last one this script
+# supports there. Apple Silicon Macs keep the latest Homebrew.
+HOMEBREW_INTEL_VERSION="6.0.22"
+# The official installer dropped Intel support in Homebrew/install@e078684 and
+# now aborts on x86_64, so Intel Macs use the last commit before that change.
+HOMEBREW_INSTALLER_URL="https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"
+HOMEBREW_INTEL_INSTALLER_URL="https://raw.githubusercontent.com/Homebrew/install/7a133dcc74051ee4efc79467ed215dfedf45aea2/install.sh"
 
 XCODE_APP_STORE_URL="macappstore://apps.apple.com/app/xcode/id497799835"
 XCODE_WEB_URL="https://apps.apple.com/app/xcode/id497799835"
@@ -169,6 +177,14 @@ detect_macos() {
     fi
 
     ARCH="$(uname -m)"
+
+    # A shell running under Rosetta 2 reports x86_64 even on Apple Silicon.
+    # Check the real chip so Apple Silicon is never treated as Intel (wrong
+    # Homebrew prefix, needless version pin).
+    if [[ "$ARCH" == "x86_64" ]] && [[ "$(sysctl -in hw.optional.arm64 2>/dev/null)" == "1" ]]; then
+        die "This shell is running under Rosetta 2 on Apple Silicon. Re-run the script from a native (arm64) terminal"
+    fi
+
     case "$ARCH" in
         arm64)
             MAC_TYPE="Apple Silicon"
@@ -322,16 +338,22 @@ install_homebrew() {
 
     if has brew; then
         ok "Homebrew already installed ($(brew --version | head -1))"
+        pin_homebrew
         return
     fi
 
+    local installer_url="$HOMEBREW_INSTALLER_URL"
+    [[ "$MAC_TYPE" == "Intel" ]] && installer_url="$HOMEBREW_INTEL_INSTALLER_URL"
+
     info "Homebrew not found, installing..."
     info "Enter your password if prompted for sudo"
+    local installer
+    installer=$(curl -fsSL "$installer_url") || die "Failed to download the Homebrew installer from $installer_url"
     if [[ "$NON_INTERACTIVE" == true ]]; then
         # NONINTERACTIVE=1 stops the Homebrew installer from waiting on RETURN
-        NONINTERACTIVE=1 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        NONINTERACTIVE=1 /bin/bash -c "$installer"
     else
-        /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+        /bin/bash -c "$installer"
     fi
 
     # Add brew to PATH for the current session
@@ -342,6 +364,33 @@ install_homebrew() {
     fi
 
     ok "Homebrew installed"
+    pin_homebrew
+}
+
+# On Intel Macs, check out the pinned Homebrew release and stop brew from
+# auto-updating past it. Does nothing on Apple Silicon.
+pin_homebrew() {
+    [[ "$MAC_TYPE" == "Intel" ]] || return 0
+
+    # `brew install` would otherwise run `brew update` and move off the pin
+    export HOMEBREW_NO_AUTO_UPDATE=1
+
+    local repo current
+    repo=$(brew --repo)
+    current=$(git -C "$repo" describe --tags --exact-match HEAD 2>/dev/null || true)
+    if [[ "$current" == "$HOMEBREW_INTEL_VERSION" ]]; then
+        ok "Homebrew pinned to $HOMEBREW_INTEL_VERSION (Intel Mac)"
+        return
+    fi
+
+    info "Intel Mac detected, pinning Homebrew to $HOMEBREW_INTEL_VERSION (currently ${current:-$(brew --version | head -1)})..."
+    git -C "$repo" fetch --quiet --force origin "refs/tags/$HOMEBREW_INTEL_VERSION:refs/tags/$HOMEBREW_INTEL_VERSION" \
+        || die "Failed to fetch Homebrew $HOMEBREW_INTEL_VERSION"
+    git -C "$repo" checkout --quiet "$HOMEBREW_INTEL_VERSION" \
+        || die "Failed to check out Homebrew $HOMEBREW_INTEL_VERSION (local changes in $repo?)"
+
+    ok "Homebrew pinned to $HOMEBREW_INTEL_VERSION (Intel Mac)"
+    warn "Auto-update is disabled; running 'brew update' manually will move Homebrew off $HOMEBREW_INTEL_VERSION"
 }
 
 # ============================================================================
@@ -445,8 +494,13 @@ setup_shell_env() {
         rm -f "$RCFILE.bak"
     fi
 
+    # Keep later `brew` runs from auto-updating past the Intel pin
+    local brew_pin_line=""
+    [[ "$MAC_TYPE" == "Intel" ]] && brew_pin_line="export HOMEBREW_NO_AUTO_UPDATE=1"
+
     cat >> "$RCFILE" <<EOF
 $marker_begin
+${brew_pin_line}
 eval "\$($BREW_PREFIX/bin/brew shellenv)"
 export PATH="\$PATH:$FLUTTER_HOME/bin"
 $marker_end
@@ -516,7 +570,7 @@ main() {
 
     echo
     info "About to install / configure the following:"
-    echo "  - Homebrew (if not already installed)"
+    echo "  - Homebrew (if not already installed; pinned to $HOMEBREW_INTEL_VERSION on Intel)"
     echo "  - Rosetta 2 (Apple Silicon only)"
     echo "  - Xcode: $XCODE_APP (accept license + first-launch setup)"
     echo "  - CocoaPods (via Homebrew)"
