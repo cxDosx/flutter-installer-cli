@@ -70,7 +70,7 @@ Press Enter to accept the defaults. The iOS script has no version prompts. The w
 
 | Component | Version | Source |
 |---|---|---|
-| Homebrew | latest (Apple Silicon) / 6.0.22 (Intel) | official installer (if missing) |
+| Homebrew | latest (Apple Silicon) / 6.0.22 + homebrew-core `727fea0` (Intel) | official installer (if missing) |
 | Rosetta 2 | — | `softwareupdate` (Apple Silicon only) |
 | Xcode | whatever you installed | **Mac App Store (manual)** |
 | CocoaPods | latest | Homebrew |
@@ -353,6 +353,8 @@ You can configure a faster regional mirror before running the script. See [Homeb
 Homebrew's official installer no longer supports Intel Macs (since [Homebrew/install@e078684](https://github.com/Homebrew/install/commit/e078684c4a86a34bc1239e1a0ddcb86d7b9c787b), it aborts with "Homebrew on macOS is only supported on Apple Silicon processors!"). If Homebrew is missing on an Intel Mac, the scripts run the last installer commit that still supports Intel (`7a133dc`) instead.
 
 On Intel Macs the macOS scripts check out Homebrew 6.0.22 (a new install or an existing one) and set `HOMEBREW_NO_AUTO_UPDATE=1`, both for the current run and in the managed block of your shell config, so later `brew install` calls do not move Homebrew past that release. Apple Silicon Macs keep the latest Homebrew. Running `brew update` by hand will still update Homebrew and remove the pin; re-run the script to pin it again.
+
+Pinning Homebrew alone does not pin formula versions: by default `brew` reads the latest formulae from the formulae.brew.sh API, and newer formula revisions are only bottled for Apple Silicon. For example, since ruby 4.0.7, `brew install cocoapods` on Intel builds ruby → rust → LLVM from source, which takes hours. So on Intel the scripts also check out `homebrew/core` at commit `727fea0` (2026-08-25), the last snapshot where every formula they install still has an Intel bottle. They also set `HOMEBREW_NO_INSTALL_FROM_API=1` (for the current run and in the shell config block) so `brew` reads formulae from that checkout. A new tap is fetched with `--depth 1` (about 56 MB). If you use a mirror, set `HOMEBREW_CORE_GIT_REMOTE` and the scripts fetch from it.
 
 The chip is detected from the hardware, not just `uname -m`: if the script runs in a Rosetta 2 (x86_64) shell on Apple Silicon, it stops and asks you to re-run it from a native terminal.
 

@@ -14,7 +14,8 @@
 #   -h, --help              Show help and exit.
 #
 # Installs / configures:
-#   - Homebrew (if not already installed; pinned to 6.0.22 on Intel Macs)
+#   - Homebrew (if not already installed; pinned to 6.0.22 + a fixed homebrew-core
+#     snapshot on Intel Macs)
 #   - Rosetta 2 (Apple Silicon only)
 #   - Xcode license acceptance + first-launch components
 #   - CocoaPods (via Homebrew)
@@ -38,6 +39,11 @@ FLUTTER_HOME="${HOME}/flutter"
 # Homebrew is pinned to this release on Intel Macs, the last one this script
 # supports there. Apple Silicon Macs keep the latest Homebrew.
 HOMEBREW_INTEL_VERSION="6.0.22"
+# homebrew-core is pinned too on Intel Macs: newer formula revisions are only
+# bottled for Apple Silicon (ruby 4.0.7 and openssl@3 3.6.3+ among them), so
+# Intel would build ruby -> rust -> llvm from source. This commit (2026-08-25)
+# is the last one where every formula the scripts install has an Intel bottle.
+HOMEBREW_CORE_INTEL_COMMIT="727fea0a56b12a6a5fa1e57ac92e1c60d98379ad"
 # The official installer dropped Intel support in Homebrew/install@e078684 and
 # now aborts on x86_64, so Intel Macs use the last commit before that change.
 HOMEBREW_INSTALLER_URL="https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh"
@@ -367,30 +373,70 @@ install_homebrew() {
     pin_homebrew
 }
 
-# On Intel Macs, check out the pinned Homebrew release and stop brew from
-# auto-updating past it. Does nothing on Apple Silicon.
+# On Intel Macs, check out the pinned Homebrew release and homebrew-core
+# snapshot, and stop brew from auto-updating past them. Does nothing on Apple
+# Silicon.
 pin_homebrew() {
     [[ "$MAC_TYPE" == "Intel" ]] || return 0
 
     # `brew install` would otherwise run `brew update` and move off the pin
     export HOMEBREW_NO_AUTO_UPDATE=1
+    # Read formulae from the pinned homebrew-core checkout instead of the live
+    # formulae.brew.sh API, whose latest versions often lack Intel bottles
+    export HOMEBREW_NO_INSTALL_FROM_API=1
 
     local repo current
     repo=$(brew --repo)
     current=$(git -C "$repo" describe --tags --exact-match HEAD 2>/dev/null || true)
     if [[ "$current" == "$HOMEBREW_INTEL_VERSION" ]]; then
         ok "Homebrew pinned to $HOMEBREW_INTEL_VERSION (Intel Mac)"
+    else
+        info "Intel Mac detected, pinning Homebrew to $HOMEBREW_INTEL_VERSION (currently ${current:-$(brew --version | head -1)})..."
+        git -C "$repo" fetch --quiet --force origin "refs/tags/$HOMEBREW_INTEL_VERSION:refs/tags/$HOMEBREW_INTEL_VERSION" \
+            || die "Failed to fetch Homebrew $HOMEBREW_INTEL_VERSION"
+        git -C "$repo" checkout --quiet "$HOMEBREW_INTEL_VERSION" \
+            || die "Failed to check out Homebrew $HOMEBREW_INTEL_VERSION (local changes in $repo?)"
+        ok "Homebrew pinned to $HOMEBREW_INTEL_VERSION (Intel Mac)"
+    fi
+
+    pin_homebrew_core
+    warn "Auto-update is disabled; running 'brew update' manually will move Homebrew and homebrew-core off the pin"
+}
+
+# Check out homebrew-core at HOMEBREW_CORE_INTEL_COMMIT. A fresh tap is a
+# shallow fetch of just that commit, so the full history is never downloaded.
+pin_homebrew_core() {
+    local core_repo short_sha remote
+    core_repo="$(brew --repo)/Library/Taps/homebrew/homebrew-core"
+    short_sha="${HOMEBREW_CORE_INTEL_COMMIT:0:7}"
+    remote="${HOMEBREW_CORE_GIT_REMOTE:-https://github.com/Homebrew/homebrew-core}"
+
+    if [[ "$(git -C "$core_repo" rev-parse HEAD 2>/dev/null)" == "$HOMEBREW_CORE_INTEL_COMMIT" ]]; then
+        ok "homebrew-core pinned to $short_sha (Intel Mac)"
         return
     fi
 
-    info "Intel Mac detected, pinning Homebrew to $HOMEBREW_INTEL_VERSION (currently ${current:-$(brew --version | head -1)})..."
-    git -C "$repo" fetch --quiet --force origin "refs/tags/$HOMEBREW_INTEL_VERSION:refs/tags/$HOMEBREW_INTEL_VERSION" \
-        || die "Failed to fetch Homebrew $HOMEBREW_INTEL_VERSION"
-    git -C "$repo" checkout --quiet "$HOMEBREW_INTEL_VERSION" \
-        || die "Failed to check out Homebrew $HOMEBREW_INTEL_VERSION (local changes in $repo?)"
+    info "Pinning homebrew-core to $short_sha (formula versions that still ship Intel bottles)..."
+    if [[ ! -d "$core_repo/.git" ]]; then
+        mkdir -p "$core_repo"
+        git -C "$core_repo" init --quiet
+        git -C "$core_repo" remote add origin "$remote"
+    fi
+    if ! git -C "$core_repo" cat-file -e "$HOMEBREW_CORE_INTEL_COMMIT^{commit}" 2>/dev/null; then
+        # Keep a full clone full; only a new or already-shallow tap gets --depth
+        local depth=""
+        if ! git -C "$core_repo" rev-parse --verify --quiet HEAD >/dev/null \
+            || [[ "$(git -C "$core_repo" rev-parse --is-shallow-repository)" == "true" ]]; then
+            depth="--depth=1"
+        fi
+        # $depth is unquoted on purpose: it must vanish when empty
+        git -C "$core_repo" fetch --quiet $depth origin "$HOMEBREW_CORE_INTEL_COMMIT" \
+            || die "Failed to fetch homebrew-core $short_sha from $remote"
+    fi
+    git -C "$core_repo" checkout --quiet --force --detach "$HOMEBREW_CORE_INTEL_COMMIT" \
+        || die "Failed to check out homebrew-core $short_sha"
 
-    ok "Homebrew pinned to $HOMEBREW_INTEL_VERSION (Intel Mac)"
-    warn "Auto-update is disabled; running 'brew update' manually will move Homebrew off $HOMEBREW_INTEL_VERSION"
+    ok "homebrew-core pinned to $short_sha (Intel Mac)"
 }
 
 # ============================================================================
@@ -496,7 +542,7 @@ setup_shell_env() {
 
     # Keep later `brew` runs from auto-updating past the Intel pin
     local brew_pin_line=""
-    [[ "$MAC_TYPE" == "Intel" ]] && brew_pin_line="export HOMEBREW_NO_AUTO_UPDATE=1"
+    [[ "$MAC_TYPE" == "Intel" ]] && brew_pin_line="export HOMEBREW_NO_AUTO_UPDATE=1 HOMEBREW_NO_INSTALL_FROM_API=1"
 
     cat >> "$RCFILE" <<EOF
 $marker_begin
