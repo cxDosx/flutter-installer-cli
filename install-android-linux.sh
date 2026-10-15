@@ -16,7 +16,7 @@
 #   -h, --help              Show help and exit.
 #
 # Installs:
-#   - JDK 17
+#   - JDK 17 (falls back to JDK 21 where 17 is unavailable, e.g. Debian 13)
 #   - Android command-line tools
 #   - Android SDK Platform (user-specified version, default 33)
 #   - Android Build Tools (matching the SDK version)
@@ -265,19 +265,33 @@ install_system_deps() {
         apt)
             info "Updating apt index..."
             $SUDO apt update -y
-            info "Installing base tools and JDK 17..."
+            # Debian 13+ no longer ships JDK 17; fall back to JDK 21
+            local jdk_pkg="openjdk-17-jdk"
+            local jdk17_policy
+            jdk17_policy=$(apt-cache policy openjdk-17-jdk 2>/dev/null || true)
+            if [[ "$jdk17_policy" != *"Candidate: "[!\(]* ]]; then
+                jdk_pkg="openjdk-21-jdk"
+                warn "openjdk-17-jdk is not available on this system, using openjdk-21-jdk instead"
+            fi
+            info "Installing base tools and ${jdk_pkg}..."
             $SUDO apt install -y \
                 curl git unzip wget xz-utils zip ca-certificates \
-                openjdk-17-jdk libglu1-mesa
+                "$jdk_pkg" libglu1-mesa
             ;;
         dnf|yum)
-            info "Installing base tools and JDK 17..."
+            # Newer Fedora releases no longer ship JDK 17; fall back to JDK 21
+            local jdk_pkg="java-17-openjdk-devel"
+            if ! $SUDO "$PKG_MANAGER" info java-17-openjdk-devel >/dev/null 2>&1; then
+                jdk_pkg="java-21-openjdk-devel"
+                warn "java-17-openjdk-devel is not available on this system, using java-21-openjdk-devel instead"
+            fi
+            info "Installing base tools and ${jdk_pkg}..."
             $SUDO "$PKG_MANAGER" install -y \
                 curl git unzip wget xz tar zip ca-certificates \
-                java-17-openjdk-devel mesa-libGLU || \
+                "$jdk_pkg" mesa-libGLU || \
                 $SUDO "$PKG_MANAGER" install -y \
                     curl git unzip wget xz tar zip ca-certificates \
-                    java-17-openjdk-devel
+                    "$jdk_pkg"
             ;;
     esac
 
@@ -548,7 +562,7 @@ main() {
 
     echo
     info "About to install the following components:"
-    echo "  - JDK 17"
+    echo "  - JDK 17 (JDK 21 if 17 is unavailable)"
     echo "  - Android SDK Platform $SDK_VERSION"
     echo "  - Android Build Tools $SDK_VERSION.0.0"
     echo "  - Android NDK $NDK_VERSION"
